@@ -2,6 +2,30 @@
 UserSpace CBDMA Driver
 ======================
 
+TODO
+----
+- port struct desc + status combo from kernel
+- malloc src and dst regions for performing memcopy
+- construct the struct on the page
+- open #cbdma/ucopy and write the addr of desc
+- print out the buffers & status field after return
+- add struct ucdma contains: struct desc, status, dmacount
+
+TODO: in kernel/../cbdm.c
+-------------------------
+- create #cbdma/ucopy file
+- write function: issue_dma()
+    * takes a struct ucdma
+    * issue the relevant writes and update struct ucdma
+- on open: construct help buffer
+- on read: print help
+- on write: (variant #1)
+    * convert addr to kaddr
+    * read the struct and convert all user-space addrs to paddr variants
+    * call issue_dma() and return (blocking call)
+- on write: (variant #2)
+    * this will be the IOMMU enabled version
+
 For kernel space
 ----------------
 uintptr_t uva2kva(struct proc *p, void *uva, size_t len, int prot)
