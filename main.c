@@ -16,9 +16,13 @@ returns a KVA, which you can convert to a phys addr with PADDR().
 #include <inttypes.h>
 #include <fcntl.h>
 
+#define CBDMA_DESC_CTRL_INTR_ON_COMPLETION           	0x00000001
+#define CBDMA_DESC_CTRL_WRITE_CHANCMP_ON_COMPLETION  	0x00000008
+
 /* Get the 2^20th page number. 2^20 * 4k = 4GB */
 #define PAGENUM (1 << 20)
 #define BUFFERSIZE 20
+#define PCI_DEV "00:03.0"
 
 /* Descriptor structue as defined in the programmer's guide.
  * It describes a single DMA transfer
@@ -105,11 +109,35 @@ void dump_ucbdma(struct ucbdma *ucbdma)
 	printf("[user] \tstatus: 0x%llx\n", ucbdma->status);
 }
 
+void attach_device(void)
+{
+	int fd = open("/sys/iommu/attach", O_RDWR);
+	char buf[1024];
+
+	sprintf(buf, "%s %d\n", PCI_DEV, getpid());
+	write(fd, buf, strlen(buf));
+
+	close(fd);
+
+	system("cat /sys/iommu/mappings");
+}
+
+void detach_device(void)
+{
+	int fd = open("/sys/iommu/detach", O_RDWR);
+
+	write(fd, PCI_DEV, strlen(PCI_DEV));
+
+	close(fd);
+}
+
 int main()
 {
 	char *region;
 	struct ucbdma *ucbdma;
 	char src[BUFFERSIZE], dst[BUFFERSIZE];
+
+	attach_device();
 	
 	/* setup src and dst buffers */
 	fill_buffer(src, '1', BUFFERSIZE);
@@ -123,6 +151,10 @@ int main()
 
 	/* setup ucbdma*/
 	ucbdma = (struct ucbdma *) region;
+	ucbdma->status = 0;
+	ucbdma->desc.descriptor_control
+		= CBDMA_DESC_CTRL_INTR_ON_COMPLETION
+		| CBDMA_DESC_CTRL_WRITE_CHANCMP_ON_COMPLETION;
 	ucbdma->desc.xfer_size = BUFFERSIZE;
 	ucbdma->desc.src_addr  = (uint64_t) src;
 	ucbdma->desc.dest_addr = (uint64_t) dst;
@@ -138,6 +170,8 @@ int main()
 
 	/* cleanup */
 	unmap_page(region);
+
+	detach_device();
 
 	return 0;
 }
